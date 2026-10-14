@@ -144,6 +144,9 @@ function mapGeminiError(err) {
   if (err?.name === 'AbortError' || err?.name === 'TimeoutError' || /abort|timed? ?out/i.test(String(err?.message))) {
     return new ApiError(504, 'AI_TIMEOUT', 'The AI service took too long to respond. Please try again later.');
   }
+  // Server-side diagnostic only (status + first line of the SDK message; never the key or prompt).
+  console.warn(`[gemini] request failed: status=${status ?? 'n/a'} ${String(err?.message ?? '').split('\n')[0].slice(0, 160)}`);
+  if (/api[_ ]?key/i.test(String(err?.message))) return new ApiError(503, 'AI_NOT_AUTHORIZED', 'The AI service rejected the server API key (check GEMINI_API_KEY).');
   if (status === 429) return new ApiError(503, 'AI_QUOTA_EXCEEDED', 'The AI service quota has been reached. Please try again later.');
   if (status === 400 || status === 404) return new ApiError(502, 'AI_REQUEST_REJECTED', 'The AI service rejected the request (check GEMINI_MODEL).');
   if (status === 401 || status === 403) return new ApiError(503, 'AI_NOT_AUTHORIZED', 'The AI service rejected the server credentials.');

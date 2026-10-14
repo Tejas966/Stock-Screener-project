@@ -71,7 +71,7 @@ export async function saveHistory(companyId, source, prices, retrievedAt) {
 export async function getStatements(companyId, source) {
   const periods = await query(
     `SELECT id, period_type, fiscal_year, fiscal_period, period_end, currency, reported_at, retrieved_at
-     FROM financial_periods WHERE company_id = ? AND source = ? ORDER BY period_end`,
+     FROM financial_periods WHERE company_id = ? AND source = ? ORDER BY period_end, period_type`,
     [companyId, source],
   );
   if (periods.length === 0) return null;

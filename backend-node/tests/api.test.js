@@ -3,6 +3,7 @@
  * database, with stubbed Python and PHP services.
  */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { after, before, describe, test } from 'node:test';
 import request from 'supertest';
 import { pythonHandler, setTestEnv, startStub, TEST_PHP_SECRET } from './helpers.js';
@@ -27,6 +28,8 @@ const { createApp } = await import('../src/app.js');
 const { closePool } = await import('../src/db/pool.js');
 const { clearAnalysisCaches } = await import('../src/services/analysisService.js');
 const { clearMemoryCache } = await import('../src/services/marketDataService.js');
+const { SNAPSHOT_PATH, setSnapshotForTests } = await import('../src/services/offlineSnapshot.js');
+const { listAll } = await import('../src/repositories/companyRepo.js');
 
 const app = createApp();
 const ORIGIN = 'http://localhost:5173';
@@ -182,9 +185,28 @@ describe('companies and analysis', () => {
     assert.equal(res.body.data.quote.meta.cache_status, 'cached');
   });
 
-  test('Python outage does not hide raw statements', async () => {
+  test('Python outage falls back to the saved snapshot (same input only)', async () => {
     clearAnalysisCaches();
     pyState.down = true;
+    try {
+      const res = await request(app).get('/api/companies/INFY.NS/fundamentals');
+      assert.equal(res.status, 200);
+      assert.equal(res.body.data.analysis_source, 'offline_snapshot');
+      assert.ok(res.body.data.analysis.key_metrics.pe_ratio > 0);
+      assert.ok(res.body.data.snapshot.generated_at);
+      const screen = await request(app).post('/api/screener/run').send({ criteria: { filters: { roe: { min: 10 } } } });
+      assert.equal(screen.status, 200);
+      assert.equal(screen.body.data.analysis_source, 'offline_snapshot');
+    } finally {
+      pyState.down = false;
+      clearAnalysisCaches();
+    }
+  });
+
+  test('Python outage without a matching snapshot does not hide raw statements', async () => {
+    clearAnalysisCaches();
+    pyState.down = true;
+    setSnapshotForTests(null);
     try {
       const res = await request(app).get('/api/companies/INFY.NS/fundamentals');
       assert.equal(res.status, 200);
@@ -193,15 +215,36 @@ describe('companies and analysis', () => {
       assert.ok(res.body.data.statements.periods.length > 0);
     } finally {
       pyState.down = false;
+      setSnapshotForTests(undefined); // reload from disk
+      clearAnalysisCaches();
     }
   });
 
-  test('AI explanation needs login, then reports when Gemini is not configured', async () => {
+  test('committed offline snapshot matches the current demo data for every listing', async () => {
+    const snapshot = JSON.parse(readFileSync(SNAPSHOT_PATH, 'utf8'));
+    const companies = await listAll();
+    assert.equal(Object.keys(snapshot.companies).length, companies.length);
+    for (const c of companies) {
+      const res = await request(app).get(`/api/companies/${encodeURIComponent(c.symbol)}/fundamentals`);
+      assert.equal(snapshot.companies[c.symbol]?.input_hash, res.body.data.analysis_input_hash,
+        `${c.symbol}: snapshot is stale - run "npm run build:offline-analysis"`);
+    }
+  });
+
+  test('explanation needs login; without Gemini it returns the built-in summary', async () => {
     assert.equal((await request(app).post('/api/analysis/TCS.NS/explanation')).status, 401);
     const agent = await registerAgent('ai@example.com');
     const res = await agent.post('/api/analysis/TCS.NS/explanation').set('Origin', ORIGIN);
-    assert.equal(res.status, 503);
-    assert.equal(res.body.error.code, 'AI_NOT_CONFIGURED');
+    assert.equal(res.status, 200);
+    assert.equal(res.body.data.source, 'offline_rules');
+    assert.equal(res.body.data.model, null);
+    assert.equal(res.body.data.fallback_reason.code, 'AI_NOT_CONFIGURED');
+    assert.ok(res.body.data.explanation.executive_summary.includes('Tata Consultancy Services'));
+    assert.match(res.body.data.disclaimer, /not AI/);
+    const offline = await agent.post('/api/analysis/TCS.NS/explanation').send({ mode: 'offline' });
+    assert.equal(offline.body.data.source, 'offline_rules');
+    assert.equal(offline.body.data.fallback_reason, null);
+    assert.equal((await agent.post('/api/analysis/TCS.NS/explanation').send({ mode: 'magic' })).status, 422);
   });
 
   test('statements and history endpoints validate their query parameters', async () => {

@@ -38,6 +38,9 @@ export const STATEMENT_FIELDS = {
 
 const PER_SHARE_FIELDS = new Set(['eps']);
 
+/** Round to the 4-decimal precision of the cache tables (DECIMAL(22,4)). */
+export const roundDb = (v) => Math.round(v * 1e4) / 1e4;
+
 /** Convert anything number-like to a finite number, else null. */
 export function num(v) {
   if (v === null || v === undefined || v === '') return null;
@@ -56,7 +59,9 @@ export function normalizeStatement(raw, statement, multiplier = 1) {
   const out = {};
   for (const field of STATEMENT_FIELDS[statement]) {
     const v = num(raw[field]);
-    out[field] = v === null ? null : PER_SHARE_FIELDS.has(field) ? v : v * multiplier;
+    // Round to 4 dp (the MySQL DECIMAL scale) so a fresh read and a cached read
+    // of the same statement are bit-for-bit identical.
+    out[field] = v === null ? null : roundDb(PER_SHARE_FIELDS.has(field) ? v : v * multiplier);
   }
   if (statement === 'cashflow') {
     if (out.capital_expenditure !== null) out.capital_expenditure = Math.abs(out.capital_expenditure);

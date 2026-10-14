@@ -5,7 +5,7 @@ import Breadcrumbs from '../components/Breadcrumbs.jsx';
 import FormField from '../components/FormField.jsx';
 import Pagination from '../components/Pagination.jsx';
 import ScreenerFilterPanel from '../components/ScreenerFilterPanel.jsx';
-import { EmptyState, ErrorState, LoadingState, Notice } from '../components/States.jsx';
+import { EmptyState, ErrorState, LoadingState, Notice, SnapshotNotice } from '../components/States.jsx';
 import StockTable from '../components/StockTable.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useApi } from '../hooks/useApi.js';
@@ -174,6 +174,7 @@ export default function Screener() {
                   {d.unavailable?.length > 0 && ` ${d.unavailable.length} companies had no data.`}
                 </p>
                 {d.provider?.is_demo && <Notice tone="demo">Results are based on illustrative demo data.</Notice>}
+          {d.analysis_source === 'offline_snapshot' && <SnapshotNotice snapshot={d.snapshot} />}
                 {d.total === 0
                   ? <EmptyState title="No companies match these filters">Try widening a range or removing a filter.</EmptyState>
                   : <StockTable rows={d.results} columns={columns} caption="Screener results" sort={sort} onSort={changeSort} />}

@@ -11,6 +11,7 @@
     "dev": "node --watch src/server.js",
     "test": "node --test --test-concurrency=1 \"tests/**/*.test.js\"",
     "build:demo-data": "node scripts/build-demo-data.js",
+    "build:offline-analysis": "node scripts/build-offline-analysis.js",
     "db:migrate": "node scripts/db-migrate.js",
     "db:seed": "node scripts/db-seed.js",
     "db:reset": "node scripts/db-migrate.js --reset && node scripts/db-seed.js"

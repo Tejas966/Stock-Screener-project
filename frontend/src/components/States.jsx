@@ -1,4 +1,4 @@
-import { AlertTriangle, Inbox } from 'lucide-react';
+import { AlertTriangle, Archive, Inbox } from 'lucide-react';
 
 export function LoadingState({ label = 'Loading…' }) {
   return (
@@ -37,5 +37,16 @@ export function Notice({ tone = 'info', icon: Icon, children, title }) {
       {Icon && <Icon size={18} aria-hidden="true" />}
       <div>{title && <strong>{title} </strong>}{children}</div>
     </div>
+  );
+}
+
+/** Shown when calculated metrics come from the saved offline snapshot (Python engine not running). */
+export function SnapshotNotice({ snapshot }) {
+  const when = snapshot?.generated_at ? new Date(snapshot.generated_at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : 'an earlier run';
+  return (
+    <Notice tone="warning" icon={Archive} title="Saved analysis:">
+      the Python calculation service is not running, so these metrics come from the analysis snapshot saved on {when}.
+      It was computed from exactly the same input data shown here.
+    </Notice>
   );
 }

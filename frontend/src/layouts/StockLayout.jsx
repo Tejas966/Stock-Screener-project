@@ -1,7 +1,7 @@
 import { NavLink, Outlet, useLocation, useParams } from 'react-router-dom';
 import Breadcrumbs from '../components/Breadcrumbs.jsx';
 import DataFreshness from '../components/DataFreshness.jsx';
-import { ErrorState, LoadingState } from '../components/States.jsx';
+import { ErrorState, LoadingState, SnapshotNotice } from '../components/States.jsx';
 import WatchlistButton from '../components/WatchlistButton.jsx';
 import { useApi } from '../hooks/useApi.js';
 import { api } from '../services/api.js';
@@ -70,6 +70,7 @@ export default function StockLayout() {
             </div>
           </div>
           <DataFreshness meta={quote?.meta ?? data.statements?.meta} observedAt={quote?.observed_at} periodEnd={data.analysis?.latest_annual_period?.period_end} />
+          {data.analysis_source === 'offline_snapshot' && <SnapshotNotice snapshot={data.snapshot} />}
         </div>
       </section>
       <div className="container page">

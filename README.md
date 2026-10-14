@@ -25,11 +25,85 @@ A full-stack Web Technology course project (Third-Year B.Tech Computer Engineeri
 14. [Troubleshooting](#14-troubleshooting)
 15. [Limitations and future improvements](#15-limitations-and-future-improvements)
 
+**Running it on another computer (e.g. a friend's)?** Follow [Quick start on a new computer](#quick-start-on-a-new-computer) below. **No internet?** See [Offline use](#offline-use-saved-analysis).
+
 Further documents:
 
 - [`docs/API.md`](docs/API.md): the full REST API reference.
 - [`docs/COURSE_OUTCOMES.md`](docs/COURSE_OUTCOMES.md): CO1–CO5 mapping with file references.
 - [`docs/ARCHITECTURE_VIVA.md`](docs/ARCHITECTURE_VIVA.md): technical explanation and likely viva questions.
+
+---
+
+## Quick start on a new computer
+
+Anyone with access to the repository can run FundamentalX on their own machine.
+
+**Internet is needed only once, to install.** The setup downloads npm, pip and Composer packages, plus MySQL itself if it isn't installed. After that, the app runs fully offline in demo mode; only AI explanations (Gemini) need internet. See [Offline use](#offline-use-saved-analysis).
+
+1. **Install the prerequisites:**
+   - Node.js 20+
+   - Python 3.10+
+   - PHP 8.1+ with `pdo_mysql`
+   - Composer
+   - MySQL 8, or Docker with `docker compose up -d`
+
+   The [prerequisites table](#prerequisites) shows how to check each one.
+2. **Clone the repository.** The default branch contains the whole project:
+   ```powershell
+   git clone https://github.com/Tejas966/Stock-Screener-project.git
+   cd Stock-Screener-project
+   ```
+3. **Do the [one-time setup](#one-time-setup-powershell-from-the-project-folder).** Your friend needs their **own** `.env`, because `.env` is git-ignored and never shared:
+   - copy `.env.example`;
+   - choose a database password;
+   - generate two random secrets.
+4. **Run `scripts\start-all.ps1`** and open <http://localhost:5173>.
+5. **Log in** with the development demo account `demo@fundamentalx.local` / `DemoPass123!` (created by `npm run db:seed`), or register a new account.
+
+**What each service is needed for**
+
+| Not running | Effect |
+|---|---|
+| MySQL | Nothing works. It holds the company list, accounts and caches. |
+| Python | Stock pages, screener and market still work, using the **saved analysis snapshot**. Sector statistics are unavailable. |
+| PHP | Saved screens and research notes show "temporarily unavailable"; everything else works. |
+| Internet | AI explanations fall back to the **built-in summary**; everything else works. |
+
+---
+
+## Offline use (saved analysis)
+
+FundamentalX includes predefined analyses so it stays demonstrable without internet, and even without the Python service:
+
+1. **Saved analysis snapshot** - `backend-node/data/offline-analysis.json`, committed to the repository. For all 25 listings it contains:
+   - the full Python analysis (every metric, series, CAGR and data-quality check);
+   - the sector peer statistics;
+   - a written summary.
+
+   When the Python service is not reachable, the gateway serves this snapshot instead of an error, and the pages show a **"Saved analysis"** notice with the date it was generated. The snapshot is used **only if a SHA-256 hash of the current input data matches the hash it was computed from**, so it can never show figures that disagree with the statements on screen.
+2. **Built-in written summary** - when Gemini is not configured or not reachable, **Explain these fundamentals** returns a rule-based summary in the same format as the AI explanation:
+   - executive summary;
+   - relative strengths;
+   - risk factors;
+   - metric explanations;
+   - data limitations.
+
+   It is generated from fixed templates in `backend-node/src/services/offlineSummary.js`. It:
+   - compares a company with its own history and with sector peers (only when at least 3 peers report the metric, and only for material gaps);
+   - handles banks and loss-making years;
+   - never recommends buying or selling.
+
+   It is always labelled **"Built-in summary · rule-based, not AI"**. When Gemini *is* configured, the **Built-in summary** button still shows it, which is handy for comparing the two.
+
+**Regenerate the snapshot** (needs MySQL and the Python service running, in demo mode) after changing the demo dataset or the Python formulas:
+
+```powershell
+cd backend-node
+npm run build:offline-analysis
+```
+
+The Node test suite fails with "snapshot is stale" if the committed snapshot no longer matches the demo data.
 
 ---
 
@@ -311,7 +385,7 @@ To switch providers, set `FINANCIAL_PROVIDER=fmp` and `FINANCIAL_PROVIDER_API_KE
   - error mapping for quota (429), timeouts, invalid key, bad model and blocked responses;
   - login required and rate-limited per user (`AI_RATE_LIMIT_PER_HOUR`);
   - cached in `ai_explanations` by a hash of model + instruction + fact sheet, so a material data change produces a new explanation.
-- **Graceful degradation:** without `GEMINI_API_KEY` the panel says AI is not configured; every number still works.
+- **Graceful degradation:** without `GEMINI_API_KEY`, or when Gemini is unreachable (offline, quota, timeout, invalid reply), the gateway returns the [built-in rule-based summary](#offline-use-saved-analysis), labelled as not AI, with the reason Gemini was skipped. Every number still works.
 - **Verification status:** request construction, validation and error mapping are covered by unit tests with a mocked client. A request with an invalid key reached Google and was correctly reported as `AI_NOT_AUTHORIZED`. **A successful live explanation could not be generated in the development environment because no API key was available.**
 
 ## 11. Security
@@ -419,11 +493,11 @@ To regenerate the demo dataset: `npm run build:demo-data`. This rewrites `data/`
 |---|---|---|---|
 | Python formulas, edge cases, API | `cd backend-python; .\.venv\Scripts\python -m pytest` | 66 | – |
 | PHP CRUD, ownership, validation | `cd backend-php; vendor\bin\phpunit` | 16 (70 assertions) | MySQL (uses `DB_TEST_NAME`, wiped) |
-| Node gateway (auth, validation, normalisation, Gemini, PHP/Python clients) | `cd backend-node; npm test` | 54 | MySQL test DB (Python/PHP are stubbed) |
-| Frontend (components, validation, guard, DOM lab) | `cd frontend; npm test` | 17 | – |
-| All of the above | `scripts\run-tests.ps1` or `./scripts/run-tests.sh` | 153 | |
+| Node gateway (auth, validation, normalisation, Gemini, offline snapshot/summary, PHP/Python clients) | `cd backend-node; npm test` | 62 | MySQL test DB (Python/PHP are stubbed) |
+| Frontend (components, validation, guard, DOM lab, explanation panel) | `cd frontend; npm test` | 18 | – |
+| All of the above | `scripts\run-tests.ps1` or `./scripts/run-tests.sh` | 162 | |
 
-All 153 passed in the development environment (Linux, MySQL 8.0.46, Node 22, PHP 8.3, Python 3.13).
+All 162 passed in the development environment (Linux, MySQL 8.0.46, Node 22, PHP 8.3, Python 3.13).
 
 The end-to-end workflow below was also exercised in Chromium with Playwright against all four running services:
 
@@ -442,7 +516,9 @@ That run produced no console errors and no horizontal overflow at 375 px width. 
 | `Activate.ps1 cannot be loaded` | Run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`. |
 | `npm install` fails with “reading 'edgesOut'” | Use the provided `frontend/.npmrc` (legacy-peer-deps), or run `npm install --legacy-peer-deps`. |
 | 403 `FORBIDDEN_ORIGIN` | Open the app at an origin listed in `CORS_ORIGINS` (`http://localhost:5173` by default). |
-| AI says “not configured” | Set `GEMINI_API_KEY` in `.env` and restart Node. If you see “check GEMINI_MODEL”, update the model id. |
+| Explanation says “Built-in summary · rule-based, not AI” | Gemini isn't configured or reachable; the message shows why. For AI text, set `GEMINI_API_KEY` in `.env`, restart Node and be online. If you see “check GEMINI_MODEL”, update the model id. |
+| “Saved analysis” notice on stock pages | The Python service isn't running; start Uvicorn for live calculations. |
+| Test fails with “snapshot is stale” | Run `npm run build:offline-analysis` (with Python running) and commit `backend-node/data/offline-analysis.json`. |
 | Times look 5½ hours off | Both services force UTC sessions in MySQL. Make sure you're using the provided code and not an old DB dump. |
 
 ## 15. Limitations and future improvements

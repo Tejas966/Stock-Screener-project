@@ -1,4 +1,4 @@
-import { Sparkles, TriangleAlert } from 'lucide-react';
+import { BookText, Sparkles, TriangleAlert } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -8,6 +8,8 @@ import { formatDateTime } from '../utils/format.js';
 
 /**
  * "Explain these fundamentals" - calls the Node gateway, which calls Gemini.
+ * When Gemini is not configured or not reachable (e.g. offline), the gateway
+ * returns the built-in rule-based summary instead, clearly labelled as such.
  * The validated JSON is rendered as plain text only (React escapes it; no
  * HTML is ever injected). Failures never affect the numbers on the page.
  */
@@ -16,38 +18,47 @@ export default function AIExplanationPanel({ symbol, analysisAvailable }) {
   const { meta } = useMeta();
   const [state, setState] = useState({ loading: false, data: null, error: null });
 
-  const run = async () => {
+  const run = async (mode = 'auto') => {
     setState({ loading: true, data: null, error: null });
     try {
-      setState({ loading: false, data: await api.explain(symbol), error: null });
+      setState({ loading: false, data: await api.explain(symbol, mode), error: null });
     } catch (error) {
       setState({ loading: false, data: null, error });
     }
   };
 
   const ex = state.data?.explanation;
+  const aiConfigured = meta?.ai?.configured === true;
+  const offline = state.data?.source === 'offline_rules';
   return (
     <section className="card ai-panel" aria-labelledby="ai-title" aria-busy={state.loading}>
       <div className="ai-panel__head">
         <h2 id="ai-title" style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 'var(--text-xl)', margin: 0 }}>
-          <Sparkles size={20} aria-hidden="true" /> AI explanation
+          <Sparkles size={20} aria-hidden="true" /> Explanation
         </h2>
         {user ? (
-          <button type="button" className="btn btn--primary" onClick={run} disabled={state.loading || !analysisAvailable || meta?.ai?.configured === false}>
-            {state.loading ? 'Generating…' : ex ? 'Regenerate' : 'Explain these fundamentals'}
-          </button>
+          <div className="btn-row">
+            <button type="button" className="btn btn--primary" onClick={() => run('auto')} disabled={state.loading || !analysisAvailable}>
+              {state.loading ? 'Generating…' : ex ? 'Regenerate' : 'Explain these fundamentals'}
+            </button>
+            {aiConfigured && (
+              <button type="button" className="btn btn--secondary" onClick={() => run('offline')} disabled={state.loading || !analysisAvailable}>
+                <BookText size={16} aria-hidden="true" /> Built-in summary
+              </button>
+            )}
+          </div>
         ) : (
-          <Link to="/login" state={{ from: `/stocks/${symbol}/fundamentals` }} className="btn btn--secondary">Log in to use AI explanations</Link>
+          <Link to="/login" state={{ from: `/stocks/${symbol}/fundamentals` }} className="btn btn--secondary">Log in to get an explanation</Link>
         )}
       </div>
       <p className="small muted" style={{ marginTop: 'var(--space-2)' }}>
         Gemini receives only the figures shown on this page and is instructed not to add numbers, predictions or buy/sell advice.
-        AI-generated explanations can be incorrect and do not replace your own research.
+        AI-generated explanations can be incorrect and do not replace your own research. Without Gemini (or offline) a built-in rule-based summary is shown instead.
       </p>
-      {meta?.ai?.configured === false && <p className="notice notice--warning">AI explanations are not configured on this server (no Gemini API key). All numerical analysis still works.</p>}
+      {meta?.ai?.configured === false && <p className="notice notice--info"><span>Gemini is not configured on this server, so you will get the <strong>built-in rule-based summary</strong>: written from fixed templates using the calculated metrics. It works offline.</span></p>}
       {!analysisAvailable && <p className="notice notice--warning">The numerical analysis is not available, so there is nothing to explain yet.</p>}
       <div aria-live="polite">
-        {state.loading && <p className="muted">Asking Gemini to explain the calculated metrics…</p>}
+        {state.loading && <p className="muted">Preparing the explanation…</p>}
         {state.error && (
           <div className="state--error" role="alert">
             <strong>Explanation unavailable.</strong> {state.error.message}
@@ -56,9 +67,13 @@ export default function AIExplanationPanel({ symbol, analysisAvailable }) {
         )}
         {ex && (
           <div className="stack" style={{ marginTop: 'var(--space-3)' }}>
-            {state.data.is_demo_data && <p className="notice notice--demo mb-0">This explanation describes <strong>illustrative demo figures</strong>, not the company's real results.</p>}
+            {offline
+              ? <p className="badge badge--info mb-0" style={{ justifySelf: 'start' }}><BookText size={12} aria-hidden="true" /> Built-in summary · rule-based, not AI</p>
+              : <p className="badge badge--neutral mb-0" style={{ justifySelf: 'start' }}><Sparkles size={12} aria-hidden="true" /> AI-generated by {state.data.model}</p>}
+            {offline && state.data.fallback_reason && <p className="notice notice--warning mb-0">Gemini was not used: {state.data.fallback_reason.message}</p>}
+            {state.data.is_demo_data && <p className="notice notice--demo mb-0"><span>This explanation describes <strong>illustrative demo figures</strong>, not the company's real results.</span></p>}
             {state.data.ungrounded_numbers?.length > 0 && (
-              <p className="notice notice--warning mb-0"><TriangleAlert size={16} aria-hidden="true" /> These numbers in the AI text could not be matched to the supplied data and may be wrong: {state.data.ungrounded_numbers.join(', ')}</p>
+              <p className="notice notice--warning mb-0"><TriangleAlert size={16} aria-hidden="true" /><span>These numbers in the AI text could not be matched to the supplied data and may be wrong: {state.data.ungrounded_numbers.join(', ')}</span></p>
             )}
             <div><h3>Summary</h3><p>{ex.executive_summary}</p></div>
             <div className="grid grid--2">
@@ -70,7 +85,7 @@ export default function AIExplanationPanel({ symbol, analysisAvailable }) {
             )}
             <div><h3>Data limitations</h3><ul>{ex.data_limitations.map((t) => <li key={t}>{t}</li>)}</ul></div>
             <p className="notice notice--info mb-0">{ex.overall_caveat}</p>
-            <p className="xsmall muted mb-0">Model: {state.data.model} · {state.data.cached ? 'cached result' : 'generated'} {formatDateTime(state.data.generated_at)} · {state.data.disclaimer}</p>
+            <p className="xsmall muted mb-0">{offline ? (state.data.cached ? 'Saved offline summary' : 'Built-in summary') : `Model: ${state.data.model}`} · {state.data.cached ? 'saved' : 'generated'} {formatDateTime(state.data.generated_at)} · {state.data.disclaimer}</p>
           </div>
         )}
       </div>

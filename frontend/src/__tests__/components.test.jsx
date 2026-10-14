@@ -143,3 +143,22 @@ describe('login form', () => {
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Email or password is incorrect.'));
   });
 });
+
+describe('AIExplanationPanel', () => {
+  it('labels the built-in summary as rule-based, not AI, and shows why Gemini was skipped', async () => {
+    const explanation = {
+      executive_summary: 'Test Co reported revenue of ₹100 crore.', positive_observations: ['Margins improved.'], risk_factors: [],
+      metric_explanations: [], data_limitations: ['These are illustrative demo figures.'], overall_caveat: 'Not advice.',
+    };
+    vi.stubGlobal('fetch', mockFetch({
+      '/auth/me': { status: 200, body: { data: { id: 1, name: 'A', email: 'a@b.co' } } },
+      '/analysis/TEST.NS/explanation': { status: 200, body: { data: { explanation, source: 'offline_rules', model: null, cached: true, generated_at: '2026-10-14T10:00:00Z', ungrounded_numbers: [], fallback_reason: { code: 'AI_NOT_CONFIGURED', message: 'Gemini key missing' }, is_demo_data: true, disclaimer: 'Built-in summary (not AI).' } } },
+    }));
+    const { default: AIExplanationPanel } = await import('../components/AIExplanationPanel.jsx');
+    wrap(<AIExplanationPanel symbol="TEST.NS" analysisAvailable />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Explain these fundamentals' }));
+    expect(await screen.findByText('Built-in summary · rule-based, not AI')).toBeInTheDocument();
+    expect(screen.getByText(/Gemini was not used: Gemini key missing/)).toBeInTheDocument();
+    expect(screen.getByText('Test Co reported revenue of ₹100 crore.')).toBeInTheDocument();
+  });
+});

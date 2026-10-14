@@ -58,6 +58,8 @@ router.get('/overview', asyncHandler(async (_req, res) => {
       data_meta: rows[0]?.data_meta ?? null,
       provider: universe.provider,
       generated_at: universe.generated_at,
+      analysis_source: universe.analysis_source,
+      snapshot: universe.snapshot,
     },
   });
 }));

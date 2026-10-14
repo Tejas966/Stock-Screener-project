@@ -15,7 +15,7 @@ router.post('/run', validate(runSchema), asyncHandler(async (req, res) => {
   const { criteria, page, page_size: pageSize } = req.valid.body;
   const universe = await getUniverse();
   const result = runScreen(universe.rows, criteria, { page, pageSize });
-  res.json({ data: { ...result, criteria, unavailable: universe.unavailable, provider: universe.provider, generated_at: universe.generated_at } });
+  res.json({ data: { ...result, criteria, unavailable: universe.unavailable, provider: universe.provider, generated_at: universe.generated_at, analysis_source: universe.analysis_source, snapshot: universe.snapshot } });
 }));
 
 export default router;

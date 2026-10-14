@@ -3,12 +3,12 @@
  * -> Python calculations. Results keep provider-reported values, Python-
  * calculated metrics and their metadata clearly separated.
  */
-import { createHash } from 'node:crypto';
 import * as companyRepo from '../repositories/companyRepo.js';
 import { ApiError, notFound } from '../utils/errors.js';
 import { CRORE } from '../utils/format.js';
 import { TtlCache } from '../utils/ttlCache.js';
 import * as marketData from './marketDataService.js';
+import { findEntry, payloadHash, snapshotInfo } from './offlineSnapshot.js';
 import { getProvider } from './providers/index.js';
 import { python } from './pythonClient.js';
 
@@ -44,14 +44,29 @@ export function buildAnalysisPayload(company, quote, periods) {
       market_cap: quote?.market_cap ?? null,
       dividend_per_share: quote?.dividend_per_share ?? null,
     },
-    periods: (periods ?? []).map(stripPeriod),
+    // Deterministic order (annual and Q4 share an end date) so equal data hashes equally.
+    periods: (periods ?? []).map(stripPeriod)
+      .sort((a, b) => a.period_end.localeCompare(b.period_end) || a.period_type.localeCompare(b.period_type)),
   };
 }
 
-const hashOf = (obj) => createHash('sha256').update(JSON.stringify(obj)).digest('hex');
+export { payloadHash };
 
+/**
+ * Live Python analysis; if the Python service is unavailable, fall back to the
+ * saved offline snapshot - but only when it was computed from this exact input.
+ * Returns { analysis, source: 'live' | 'offline_snapshot' }.
+ */
 async function runAnalysis(payload) {
-  return analysisCache.wrap(`analysis:${hashOf(payload)}`, 600, () => python.analyze(payload));
+  const hash = payloadHash(payload);
+  try {
+    const analysis = await analysisCache.wrap(`analysis:${hash}`, 600, () => python.analyze(payload));
+    return { analysis, source: 'live' };
+  } catch (err) {
+    const saved = err.code === 'ANALYSIS_SERVICE_UNAVAILABLE' ? findEntry(payload.symbol, hash) : null;
+    if (saved) return { analysis: saved.analysis, source: 'offline_snapshot' };
+    throw err;
+  }
 }
 
 function settledError(reason) {
@@ -74,10 +89,12 @@ export async function getCompanyBundle(rawSymbol) {
   const quote = quoteR.status === 'fulfilled' ? quoteR.value : null;
   const statements = stmtR.status === 'fulfilled' ? stmtR.value : null;
 
+  const payload = buildAnalysisPayload(company, quote?.data, statements?.data);
   let analysis = null;
+  let analysisSource = null;
   let analysisError = null;
   try {
-    analysis = await runAnalysis(buildAnalysisPayload(company, quote?.data, statements?.data));
+    ({ analysis, source: analysisSource } = await runAnalysis(payload));
   } catch (err) {
     analysisError = settledError(err);
   }
@@ -91,6 +108,9 @@ export async function getCompanyBundle(rawSymbol) {
     statements_error: stmtR.status === 'rejected' ? settledError(stmtR.reason) : null,
     analysis,
     analysis_error: analysisError,
+    analysis_source: analysisSource, // 'live' | 'offline_snapshot' | null
+    analysis_input_hash: payloadHash(payload),
+    snapshot: analysisSource === 'offline_snapshot' ? snapshotInfo() : null,
   };
 }
 
@@ -134,8 +154,20 @@ export async function getRowsForCompanies(companies) {
     };
   }));
   const usable = fetched.filter((f) => !f.error);
-  const results = usable.length ? await python.analyzeBatch(usable.map((f) => buildAnalysisPayload(f.company, f.quote?.data, f.statements?.data))) : [];
+  const payloads = usable.map((f) => buildAnalysisPayload(f.company, f.quote?.data, f.statements?.data));
+  let results = [];
+  let source = 'live';
+  try {
+    results = payloads.length ? await python.analyzeBatch(payloads) : [];
+  } catch (err) {
+    // Python down: use the saved snapshot if EVERY company has a matching entry.
+    const saved = err.code === 'ANALYSIS_SERVICE_UNAVAILABLE' ? payloads.map((pl) => findEntry(pl.symbol, payloadHash(pl))) : [];
+    if (!saved.length || saved.some((e) => !e)) throw err;
+    results = saved.map((e) => e.analysis);
+    source = 'offline_snapshot';
+  }
   return {
+    analysis_source: source,
     rows: usable.map((f, i) => ({ ...metricRow(f.company, f.quote?.data, results[i]), data_meta: f.quote?.meta ?? f.statements?.meta })),
     unavailable: fetched.filter((f) => f.error).map((f) => ({ symbol: f.company.symbol, name: f.company.name, error: f.error })),
   };
@@ -146,10 +178,12 @@ export async function getUniverse() {
   const provider = getProvider();
   return universeCache.wrap(`universe:${provider.name}`, 300, async () => {
     const companies = await companyRepo.listAll({ primaryOnly: true });
-    const { rows, unavailable } = await getRowsForCompanies(companies);
+    const { rows, unavailable, analysis_source: analysisSource } = await getRowsForCompanies(companies);
     return {
       rows,
       unavailable,
+      analysis_source: analysisSource,
+      snapshot: analysisSource === 'offline_snapshot' ? snapshotInfo() : null,
       provider: { name: provider.name, is_demo: provider.isDemo, label: provider.label },
       generated_at: new Date().toISOString(),
     };

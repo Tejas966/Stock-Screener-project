@@ -62,7 +62,7 @@ export const api = {
   fundamentals: (symbol, o) => request(`/companies/${enc(symbol)}/fundamentals`, o),
   statements: (symbol, query, o = {}) => request(`/companies/${enc(symbol)}/statements`, { ...o, query }),
   history: (symbol, range, o = {}) => request(`/companies/${enc(symbol)}/history`, { ...o, query: { range } }),
-  explain: (symbol) => request(`/analysis/${enc(symbol)}/explanation`, { method: 'POST' }),
+  explain: (symbol, mode = 'auto') => request(`/analysis/${enc(symbol)}/explanation`, { method: 'POST', body: { mode } }),
   // research tools
   screenerFilters: (o) => request('/screener/filters', o),
   runScreener: (body, o = {}) => request('/screener/run', { ...o, method: 'POST', body }),

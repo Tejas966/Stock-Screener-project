@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import Breadcrumbs from '../components/Breadcrumbs.jsx';
 import { PriceChart } from '../components/Charts.jsx';
 import DataFreshness from '../components/DataFreshness.jsx';
-import { ErrorState, LoadingState, Notice } from '../components/States.jsx';
+import { ErrorState, LoadingState, Notice, SnapshotNotice } from '../components/States.jsx';
 import { useApi } from '../hooks/useApi.js';
 import { useDocumentTitle } from '../hooks/useDocumentTitle.js';
 import { api } from '../services/api.js';
@@ -39,6 +39,7 @@ export default function MarketOverview() {
         <div className="stack" style={{ gap: 'var(--space-5)' }}>
           {isDemo && <Notice tone="demo" title="Illustrative data:">index levels and prices below are generated for demonstration and are not real market values.</Notice>}
           <DataFreshness meta={data.data_meta} />
+          {data.analysis_source === 'offline_snapshot' && <SnapshotNotice snapshot={data.snapshot} />}
           <section aria-labelledby="idx-title">
             <h2 id="idx-title" style={{ fontSize: 'var(--text-xl)' }}>Indices</h2>
             {data.indices.length === 0 && <p className="muted">Index data is not available from the current provider{data.indices_error ? `: ${data.indices_error.message}` : '.'}</p>}

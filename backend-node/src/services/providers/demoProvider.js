@@ -86,7 +86,7 @@ export const demoProvider = {
       price: last.close,
       currency: 'INR',
       change_pct: Math.round(((last.close / prev.close) - 1) * 10000) / 100,
-      shares_outstanding: rec.shares_outstanding_crore * CRORE,
+      shares_outstanding: Math.round(rec.shares_outstanding_crore * CRORE), // whole shares (matches BIGINT cache column)
       market_cap: null,
       dividend_per_share: rec.dividend_per_share,
       observed_at: `${DEMO_AS_OF}T10:00:00.000Z`, // 15:30 IST close

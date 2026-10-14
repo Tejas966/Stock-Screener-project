@@ -107,6 +107,8 @@ The browser talks **only** to the Node.js gateway. In development it is proxied 
 }
 ```
 
+The bundle also has `analysis_source`, which is `"live"` or `"offline_snapshot"` (the saved analysis, used only when Python is unreachable and the input hash matches), plus `analysis_input_hash` and `snapshot` (`{ generated_at, ... }` when the snapshot is in use). The screener and market responses carry the same `analysis_source` and `snapshot` fields.
+
 The bundle tolerates partial failure. If the quote fails, `quote` is `null` and `quote_error` is set. If Python is down, `analysis` is `null` and `analysis_error` is `{ code: "ANALYSIS_SERVICE_UNAVAILABLE", ... }`. The response is an error only when **both** the quote and the statements fail.
 
 ## Analysis and AI
@@ -114,7 +116,7 @@ The bundle tolerates partial failure. If the quote fails, `quote` is `null` and 
 | Method | Path | Description |
 |---|---|---|
 | POST | `/api/analysis/:symbol` | Re-runs the deterministic analysis: `{ company, analysis, provider }`. |
-| POST 🔒 | `/api/analysis/:symbol/explanation` | Gemini explanation. Rate limited per user (`AI_RATE_LIMIT_PER_HOUR`). |
+| POST 🔒 | `/api/analysis/:symbol/explanation` | Body (optional): `{ "mode": "auto" \| "offline" }`. `auto` (the default) uses Gemini, falling back to the built-in rule-based summary when Gemini is not configured or unreachable. `offline` always returns the built-in summary. Rate limited per user (`AI_RATE_LIMIT_PER_HOUR`). |
 
 **Explanation response**
 
@@ -122,10 +124,12 @@ The bundle tolerates partial failure. If the quote fails, `quote` is `null` and 
 { "explanation": { "executive_summary": "...", "positive_observations": [...], "risk_factors": [...],
     "metric_explanations": [{ "metric": "...", "explanation": "..." }], "data_limitations": [...], "overall_caveat": "..." },
   "model": "gemini-2.5-flash", "cached": false, "generated_at": "ISO", "ungrounded_numbers": [],
-  "fact_sheet_hash": "sha256", "symbol": "TCS.NS", "is_demo_data": true, "disclaimer": "..." }
+  "fact_sheet_hash": "sha256", "source": "gemini", "symbol": "TCS.NS", "is_demo_data": true, "disclaimer": "..." }
 ```
 
-**Explanation errors**
+When the built-in summary is returned, the explanation has the same structure, with `source: "offline_rules"`, `model: null`, `ungrounded_numbers: []` and `fallback_reason: { code, message }` (or `null` in `offline` mode). `cached: true` means the saved summary from the offline snapshot was used.
+
+**Explanation errors** (in `auto` mode, the AI failures below return the built-in summary instead; only `409` and `429` are still returned as errors)
 
 | Status | Codes |
 |---|---|

@@ -105,6 +105,9 @@ FundamentalX is a **four-service** web application.
 25. *How do you avoid wasting provider quota?* Per-type caches in memory and MySQL, no automatic retries, timeouts on every outbound call, and one batched Python call for the whole universe.
 26. *How is CSRF prevented?* SameSite=Lax cookies; state-changing requests must be `application/json` (which a plain HTML form cannot send cross-site without CORS); and an Origin allow-list check.
 
+31. *What happens with no internet?* In demo mode, everything runs locally. Explanations fall back to the built-in rule-based summary (`offlineSummary.js`), which is labelled "not AI". If Python isn't running either, Node serves the committed analysis snapshot, but only when the SHA-256 of the current input equals the snapshot's input hash.
+32. *Why hash with sorted keys?* Rows read back from the MySQL cache come out in a different key order than fresh provider data, and an annual period and Q4 share an end date. Canonical JSON (sorted keys) plus deterministic period ordering makes equal data hash equally.
+
 **Finance**
 
 27. *Why average equity for ROE?* Profit is earned over the whole year, while equity changes during it. Averaging opening and closing equity matches the time base.
@@ -125,4 +128,4 @@ FundamentalX is a **four-service** web application.
    SELECT * FROM saved_screens;
    ```
 7. `/lab/javascript-dom`: validation, Enter/Escape, arrow-key listbox.
-8. Run `scripts/run-tests.ps1`: 153 tests pass.
+8. Run `scripts/run-tests.ps1`: 162 tests pass.

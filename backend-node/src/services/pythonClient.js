@@ -21,6 +21,9 @@ async function post(path, body) {
     console.error('[python] rejected payload', JSON.stringify(res.data?.detail ?? res.data).slice(0, 800));
     throw new ApiError(502, 'ANALYSIS_INPUT_REJECTED', 'Financial data could not be processed (failed validation)');
   }
+  if (res.status >= 500) {
+    throw new ApiError(503, 'ANALYSIS_SERVICE_UNAVAILABLE', 'The financial calculation service is unavailable. Raw statements can still be viewed.');
+  }
   if (res.status !== 200) throw new ApiError(502, 'ANALYSIS_FAILED', `Financial processing service returned HTTP ${res.status}`);
   return res.data;
 }

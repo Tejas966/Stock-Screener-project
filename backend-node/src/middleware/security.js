@@ -32,7 +32,8 @@ export function requireSafeOrigin(req, _res, next) {
   if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
   const origin = req.get('origin');
   if (origin && !config.corsOrigins.includes(origin)) return next(new ApiError(403, 'FORBIDDEN_ORIGIN', 'Request origin is not allowed'));
-  if (['POST', 'PUT', 'PATCH'].includes(req.method) && req.body !== undefined && !req.is('application/json')) {
+  const hasBody = Number(req.get('content-length') ?? 0) > 0 || req.get('transfer-encoding') !== undefined;
+  if (['POST', 'PUT', 'PATCH'].includes(req.method) && hasBody && !req.is('application/json')) {
     return next(new ApiError(415, 'UNSUPPORTED_MEDIA_TYPE', 'Content-Type must be application/json'));
   }
   next();

@@ -13,6 +13,16 @@ import { TtlCache } from '../utils/ttlCache.js';
 import { getProvider } from './providers/index.js';
 
 const memory = new TtlCache(1000);
+
+// Cache writes replace a company's rows inside a transaction (DELETE + INSERT).
+// Running many of them concurrently (e.g. the screener loading every company)
+// makes InnoDB gap locks deadlock, so writes are applied one at a time.
+let writeQueue = Promise.resolve();
+function enqueueWrite(task) {
+  const run = writeQueue.then(task);
+  writeQueue = run.catch(() => {});
+  return run;
+}
 const log = (msg) => { if (!config.isTest) console.warn(`[market-data] ${msg}`); };
 
 function meta(provider, status, retrievedAt, extra = {}) {
@@ -50,7 +60,7 @@ async function layered({ type, company, ttl, readDb, writeDb, fetchFresh }) {
     const value = await fetchFresh(provider);
     const now = new Date();
     try {
-      await writeDb(company.id, provider.name, value, now);
+      await enqueueWrite(() => writeDb(company.id, provider.name, value, now));
     } catch (err) {
       log(`cache write failed for ${type} (${err.code || err.message})`);
     }

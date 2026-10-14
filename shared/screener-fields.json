@@ -1,0 +1,22 @@
+{
+  "_comment": "Single source of truth for screener filter fields. Read by the Node gateway (validation + screener) and the PHP service (saved-screen validation). Keys match the Python engine's key_metrics.",
+  "fields": [
+    { "key": "market_cap_cr",     "label": "Market cap",          "unit": "INR crore", "group": "Size" },
+    { "key": "pe_ratio",          "label": "P/E ratio",           "unit": "x",         "group": "Valuation" },
+    { "key": "pb_ratio",          "label": "Price-to-book",       "unit": "x",         "group": "Valuation" },
+    { "key": "ev_ebitda",         "label": "EV/EBITDA",           "unit": "x",         "group": "Valuation" },
+    { "key": "dividend_yield",    "label": "Dividend yield",      "unit": "%",         "group": "Valuation" },
+    { "key": "roe",               "label": "ROE",                 "unit": "%",         "group": "Profitability" },
+    { "key": "roce",              "label": "ROCE",                "unit": "%",         "group": "Profitability" },
+    { "key": "operating_margin",  "label": "Operating margin",    "unit": "%",         "group": "Profitability" },
+    { "key": "net_margin",        "label": "Net profit margin",   "unit": "%",         "group": "Profitability" },
+    { "key": "revenue_growth",    "label": "Revenue growth (YoY)","unit": "%",         "group": "Growth" },
+    { "key": "net_income_growth", "label": "Profit growth (YoY)", "unit": "%",         "group": "Growth" },
+    { "key": "eps_growth",        "label": "EPS growth (YoY)",    "unit": "%",         "group": "Growth" },
+    { "key": "debt_to_equity",    "label": "Debt-to-equity",      "unit": "x",         "group": "Financial health" },
+    { "key": "current_ratio",     "label": "Current ratio",       "unit": "x",         "group": "Financial health" },
+    { "key": "interest_coverage", "label": "Interest coverage",   "unit": "x",         "group": "Financial health" }
+  ],
+  "sortable_extra": ["company_name"],
+  "limits": { "max_abs_value": 1000000000, "name_max": 80, "description_max": 300 }
+}

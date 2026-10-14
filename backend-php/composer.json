@@ -1,0 +1,26 @@
+{
+  "name": "fundamentalx/backend-php",
+  "description": "FundamentalX internal persistence service: saved screens and research notes (PHP 8 + PDO + MySQL)",
+  "type": "project",
+  "license": "MIT",
+  "require": {
+    "php": ">=8.1",
+    "ext-pdo": "*",
+    "ext-pdo_mysql": "*",
+    "ext-json": "*"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^11.5"
+  },
+  "autoload": {
+    "psr-4": { "FundamentalX\\": "src/" }
+  },
+  "autoload-dev": {
+    "psr-4": { "FundamentalX\\Tests\\": "tests/" }
+  },
+  "scripts": {
+    "serve": "php -S 127.0.0.1:8002 -t public public/index.php",
+    "test": "phpunit"
+  },
+  "config": { "sort-packages": true }
+}

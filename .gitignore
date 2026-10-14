@@ -1,0 +1,28 @@
+# Secrets / local config
+.env
+.env.local
+*.local
+!.env.example
+
+# Dependencies
+node_modules/
+vendor/
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Build output
+dist/
+build/
+coverage/
+.phpunit.cache/
+.phpunit.result.cache
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log

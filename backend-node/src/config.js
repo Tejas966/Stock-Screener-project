@@ -20,7 +20,7 @@ export const config = {
   isProduction: env.NODE_ENV === 'production',
   isTest: env.NODE_ENV === 'test',
   port: int(env.NODE_PORT, 4000),
-  corsOrigins: list(env.CORS_ORIGINS, ['http://localhost:5173']),
+  corsOrigins: list(env.CORS_ORIGINS, ['http://localhost:5173', 'http://127.0.0.1:5173']),
   sessionTtlHours: int(env.SESSION_TTL_HOURS, 72),
   cookieSecure: bool(env.COOKIE_SECURE, env.NODE_ENV === 'production'),
 

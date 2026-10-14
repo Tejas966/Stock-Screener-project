@@ -2,7 +2,7 @@ import bcrypt from 'bcryptjs';
 import { Router } from 'express';
 import { z } from 'zod';
 import { config } from '../config.js';
-import { cookieOptions, requireAuth, SESSION_COOKIE } from '../middleware/auth.js';
+import { cookieOptions, SESSION_COOKIE } from '../middleware/auth.js';
 import { authLimiter } from '../middleware/security.js';
 import { validate } from '../middleware/validate.js';
 import * as sessionRepo from '../repositories/sessionRepo.js';
@@ -62,6 +62,10 @@ router.post('/logout', asyncHandler(async (req, res) => {
   res.status(204).end();
 }));
 
-router.get('/me', requireAuth, (req, res) => res.json({ data: publicUser(req.user) }));
+/** Current session. Anonymous visitors get { data: null } (not an error) so the SPA can check quietly. */
+router.get('/me', (req, res, next) => {
+  if (!req.user && req.authError) return next(req.authError);
+  res.json({ data: req.user ? publicUser(req.user) : null });
+});
 
 export default router;

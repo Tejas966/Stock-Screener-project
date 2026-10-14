@@ -65,7 +65,7 @@ describe('authentication', () => {
     assert.equal(me.body.data.email, 'flow@example.com');
     assert.equal(me.body.data.password_hash, undefined, 'never expose the hash');
     assert.equal((await agent.post('/api/auth/logout').set('Origin', ORIGIN)).status, 204);
-    assert.equal((await agent.get('/api/auth/me')).status, 401);
+    assert.equal((await agent.get('/api/auth/me')).body.data, null);
   });
 
   test('session cookie is httpOnly and SameSite', async () => {
@@ -94,7 +94,9 @@ describe('authentication', () => {
 
   test('forged or garbage cookies are treated as anonymous', async () => {
     const res = await request(app).get('/api/auth/me').set('Cookie', 'fx_session=forged-token');
-    assert.equal(res.status, 401);
+    assert.equal(res.status, 200);
+    assert.equal(res.body.data, null);
+    assert.equal((await request(app).get('/api/watchlist').set('Cookie', 'fx_session=forged-token')).status, 401);
   });
 
   test('protected routes require login', async () => {
